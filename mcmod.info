@@ -1,0 +1,17 @@
+[
+{
+  "modid" : "qidydlCCWebServer",
+  "name" : "ComputerCraft WebServe",
+  "version" : "@VERSION@",
+  "url" : "https://github.com/qidydl/ComputerCraft-WebServer",
+  "credits" : "",
+  "authors": [
+    "qidydl"
+  ],
+  "description": "Access ComputerCraft from the real web",
+  "logoFile" : "",
+  "updateUrl" : "",
+  "parent" : "",
+  "screenshots": [
+  ]
+}]
