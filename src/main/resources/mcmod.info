@@ -2,7 +2,7 @@
 {
   "modid": "qidydlCCWebServer",
   "name": "ComputerCraft WebServer",
-  "description": "ComputerCraft WebServer",
+  "description": "Allow your computers to be accessed from the real World Wide Web.",
   "version": "${version}",
   "mcversion": "${mcversion}",
   "url": "https://github.com/qidydl/ComputerCraft-WebServer",
