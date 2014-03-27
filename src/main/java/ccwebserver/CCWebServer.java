@@ -28,13 +28,13 @@ public class CCWebServer
 
 	private static final Item itemWebModem = new ItemWebModem(12345);
 
-	@EventHandler // used in 1.6.2
+	@EventHandler
 	public void preInit(FMLPreInitializationEvent event)
 	{
 		// Stub Method
 	}
 
-	@EventHandler // used in 1.6.2
+	@EventHandler
 	public void load(FMLInitializationEvent event)
 	{
 		proxy.registerRenderers();
@@ -51,7 +51,7 @@ public class CCWebServer
 				'x', stoneStack, 'y', enderPearlStack, 'z', diamondStack);
 	}
 
-	@EventHandler // used in 1.6.2
+	@EventHandler
 	public void postInit(FMLPostInitializationEvent event)
 	{
 		// Stub Method
