@@ -66,24 +66,24 @@ def getGitVersion()
     def outStream = new ByteArrayOutputStream()
     def result = exec {
         executable = 'git'
-        args = [ 'describe', '--long', "--match=[^(jenkins)]*"]
+        args = [ 'describe', '--long', '--tags', '--match=[^(jenkins)]*']
         standardOutput = outStream
     }
 
     def fullVersion = outStream.toString().trim()
-    def matcher = fullVersion =~ /(\d+).(\d+)-(\d+)-(.*)/
+    def matcher = fullVersion =~ /(\d+)\.(\d+)\.(\d+)-(\d+)-(.*)/
 
     def maj = matcher[0][1]
-    def min = matcher[0][2]
-    def rev = matcher[0][3]
-    def bn = System.getenv("BUILD_NUMBER") ?: "1"
+    def med = matcher[0][2]
+    def min = matcher[0][3]
+    def rev = matcher[0][4]
 
     out['ccwebserver.build.major.number'] = maj.toString()
+    out['ccwebserver.build.medium.number'] = med.toString()
     out['ccwebserver.build.minor.number'] = min.toString()
     out['ccwebserver.build.revision.number'] = rev.toString()
     out['ccwebserver.build.githash'] = matcher[0][4].toString()
-    out['ccwebserver.build.number' ] = bn.toString()
-    out['ccwebserver.version' ] = "${maj}.${min}.${rev}.${bn}".toString()
+    out['ccwebserver.version' ] = "${maj}.${med}.${min}.${rev}".toString()
 
     return out
 }
