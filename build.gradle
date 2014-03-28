@@ -1,3 +1,4 @@
+// This sets us up for building a forge project for 1.6.2 - you need all of these
 buildscript {
     repositories {
         mavenCentral()
@@ -11,11 +12,13 @@ buildscript {
     }
 }
 
+// Apply the forge plugin - this adds all the magic for automatically obfuscating, de-obfuscating, etc.
 apply plugin: 'forge'
 
-version = "0.0.1"
-group= "ccwebserver.qidydlCCWebServer" // http://maven.apache.org/guides/mini/guide-naming-conventions.html
-archivesBaseName = "qidydlCCWebServer"
+def versionInfo = getGitVersion()
+version = "${versionInfo['ccwebserver.version']}"
+group= "com.qidydl" // http://maven.apache.org/guides/mini/guide-naming-conventions.html
+archivesBaseName = "ccwebserver"
 
 minecraft {
 	version = "1.6.4-9.11.1.964"
@@ -23,16 +26,64 @@ minecraft {
 
 processResources
 {
-    // replace stuff in mcmod.info, nothing else
-    from(sourceSets.main.resources.srcDirs) {
-        include 'mcmod/info'
-                
-        // replace version and mcversion
-        expand 'version':project.version, 'mcversion':project.minecraft.version
+	// replace stuff in mcmod.info, nothing else
+	from(sourceSets.main.resources.srcDirs) {
+		include 'mcmod.info'
+
+		// replace version and mcversion
+		expand 'version':project.version, 'mcversion':project.minecraft.version
+	}
+
+	// copy everything else, thats not the mcmod.info
+	from(sourceSets.main.resources.srcDirs) {
+		exclude 'mcmod.info'
+	}
+
+	// generate version.properties file from the git version data earlier
+	doLast {
+		def propsFile = new File(destinationDir, 'version.properties')
+		def properties = new Properties()
+		properties.putAll(versionInfo)
+		properties['ccwebserver.build.mcversion'] = project.minecraft.version
+		properties.store(propsFile.newWriter(), null)
+	}
+}
+
+// this sets our output jar to have a 'tag' of 'universal' on it
+// It also adds the minecraft version in a custom version name
+// The result is files named <projectname>-<mcversion>-<version>-universal.jar
+jar {
+	classifier = 'universal'
+	version = "${project.minecraft.version}-${project.version}"
+}
+
+// This is a special task for pulling the version information from git and the environment (for BUILD_NUMBER)
+def getGitVersion()
+{
+    def out = [:]
+
+    // call git command.
+    def outStream = new ByteArrayOutputStream()
+    def result = exec {
+        executable = 'git'
+        args = [ 'describe', '--long', "--match=[^(jenkins)]*"]
+        standardOutput = outStream
     }
-        
-    // copy everything else, thats not the mcmod.info
-    from(sourceSets.main.resources.srcDirs) {
-        exclude 'mcmod.info'
-    }
+
+    def fullVersion = outStream.toString().trim()
+    def matcher = fullVersion =~ /(\d+).(\d+)-(\d+)-(.*)/
+
+    def maj = matcher[0][1]
+    def min = matcher[0][2]
+    def rev = matcher[0][3]
+    def bn = System.getenv("BUILD_NUMBER") ?: "1"
+
+    out['ccwebserver.build.major.number'] = maj.toString()
+    out['ccwebserver.build.minor.number'] = min.toString()
+    out['ccwebserver.build.revision.number'] = rev.toString()
+    out['ccwebserver.build.githash'] = matcher[0][4].toString()
+    out['ccwebserver.build.number' ] = bn.toString()
+    out['ccwebserver.version' ] = "${maj}.${min}.${rev}.${bn}".toString()
+
+    return out
 }

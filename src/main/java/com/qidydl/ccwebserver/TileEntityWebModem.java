@@ -1,4 +1,4 @@
-package ccwebserver;
+package com.qidydl.ccwebserver;
 
 import net.minecraft.tileentity.TileEntity;
 import dan200.computercraft.api.peripheral.IComputerAccess;

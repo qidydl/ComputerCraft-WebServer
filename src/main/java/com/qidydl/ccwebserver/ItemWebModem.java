@@ -1,4 +1,4 @@
-package ccwebserver;
+package com.qidydl.ccwebserver;
 
 import net.minecraft.creativetab.CreativeTabs;
 import net.minecraft.item.Item;

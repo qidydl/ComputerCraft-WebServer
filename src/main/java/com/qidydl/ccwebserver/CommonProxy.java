@@ -1,4 +1,4 @@
-package ccwebserver;
+package com.qidydl.ccwebserver;
 
 public class CommonProxy
 {

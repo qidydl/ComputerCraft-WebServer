@@ -1,4 +1,4 @@
-package ccwebserver;
+package com.qidydl.ccwebserver;
 
 import net.minecraft.block.Block;
 import net.minecraft.item.Item;
@@ -14,7 +14,7 @@ import cpw.mods.fml.common.network.NetworkMod;
 import cpw.mods.fml.common.registry.GameRegistry;
 import cpw.mods.fml.common.registry.LanguageRegistry;
 
-@Mod(modid = "qidydlCCWebServer", name = "ComputerCraft WebServer", version = "0.0.1")
+@Mod(modid = "qidydlCCWebServer", name = "ComputerCraft WebServer")
 @NetworkMod(serverSideRequired = true, clientSideRequired = true)
 public class CCWebServer
 {
@@ -23,7 +23,7 @@ public class CCWebServer
 	public static CCWebServer instance;
 
 	// Says where the client and server 'proxy' code is loaded.
-	@SidedProxy(clientSide="ccwebserver.client.ClientProxy", serverSide="ccwebserver.CommonProxy")
+	@SidedProxy(clientSide="com.qidydl.ccwebserver.client.ClientProxy", serverSide="com.qidydl.ccwebserver.CommonProxy")
 	public static CommonProxy proxy;
 
 	private static final Item itemWebModem = new ItemWebModem(12345);
@@ -31,7 +31,8 @@ public class CCWebServer
 	@EventHandler
 	public void preInit(FMLPreInitializationEvent event)
 	{
-		// Stub Method
+		Version.init(event.getVersionProperties());
+		event.getModMetadata().version = Version.fullVersionString();
 	}
 
 	@EventHandler

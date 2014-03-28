@@ -1,6 +1,6 @@
-package ccwebserver.client;
+package com.qidydl.ccwebserver.client;
 
-import ccwebserver.CommonProxy;
+import com.qidydl.ccwebserver.CommonProxy;
 
 public class ClientProxy extends CommonProxy
 {
