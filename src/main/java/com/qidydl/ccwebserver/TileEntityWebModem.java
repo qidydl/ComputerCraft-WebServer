@@ -54,5 +54,4 @@ public class TileEntityWebModem extends TileEntity implements IPeripheral
 		// TODO Auto-generated method stub
 		return false;
 	}
-
 }
