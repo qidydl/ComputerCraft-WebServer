@@ -2,41 +2,40 @@ package com.qidydl.ccwebserver;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.net.Socket;
+import java.net.URLDecoder;
 import java.nio.ByteBuffer;
 import java.nio.channels.ClosedSelectorException;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
-import java.util.Iterator;
-import java.util.Set;
-import java.util.HashSet;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.Semaphore;
-import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 
 import cpw.mods.fml.common.FMLLog;
 
 /**
  * The Communications Thread for ComputerCraft WebServer.
- * 
+ *
  * This thread is responsible for listening for external connections, receiving
  * data, and passing it to the appropriate WebModem. It must also receive data
  * from a WebModem and transmit it back.
- * 
+ *
  * @author qidydl
  */
 public class CommsThread extends Thread {
-	
-	private Semaphore terminate;
+
+	private final Semaphore terminate;
 	private Selector sel;
-	private int listenPort;
+	private final int listenPort;
 	private final ByteBuffer buffer = ByteBuffer.allocate( 16384 );
-	
+
 	/**
 	 * Create a new Communications Thread.
-	 * 
+	 *
 	 * @param port The port to listen for connections on.
 	 */
 	public CommsThread(int port)
@@ -69,8 +68,14 @@ public class CommsThread extends Thread {
 		sel.wakeup();
 	}
 
+	public void registerModem(TileEntityWebModem modem)
+	{
+		//
+	}
+
 	@Override
 	public void run() {
+		this.setName("CCWebServer.CommsThread");
 		boolean terminated = false;
 		boolean initialized = false;
 
@@ -103,7 +108,7 @@ public class CommsThread extends Thread {
 			{
 				// Block until something happens. Shutdown will release us from this.
 				int num = sel.select();
-				
+
 				if (num > 0)
 				{
 					// Look through all the items that should have something available
@@ -123,14 +128,14 @@ public class CommsThread extends Thread {
 						if (key.isReadable())
 						{
 							SocketChannel conn = (SocketChannel)key.channel();
-							
+
 							if (!processInput(conn))
 							{
 								// We couldn't read any data. This *might* be an error, but most likely it's socket
 								// closure, so clean up.
 								key.cancel();
 								conn.socket().close();
-								
+
 								//DEBUG
 								System.out.println("Connection closed from " + conn.socket().getRemoteSocketAddress().toString());
 							}
@@ -173,10 +178,10 @@ public class CommsThread extends Thread {
 			}
 		}
 	}
-	
+
 	/**
 	 * Process data received from a remote connection.
-	 * 
+	 *
 	 * @param sc The connection to receive data from.
 	 * @return True if data was actually received, false otherwise.
 	 * @throws IOException If an error occurs while reading the data.
@@ -187,14 +192,50 @@ public class CommsThread extends Thread {
 		buffer.clear();
 		sc.read(buffer);
 
+		// Verify we received some data
 		if (buffer.position() == 0)
 		{
 			return false;
 		}
 
-		// "Flip" the buffer to transmit the data we just received
+		// "Flip" the buffer to access the data we just received
 		buffer.flip();
-		sc.write(buffer);
+
+		// Since we're speaking a text-based protocol, we just want string data
+		byte[] validData = Arrays.copyOfRange(buffer.array(), 0, buffer.limit());
+		String input = new String(validData, "UTF-8");
+		String path = "";
+		Map<String, String> params = new HashMap<String, String>();
+
+		int split = input.indexOf('?');
+		if (split > 0)
+		{
+			// First line is the URL path
+			path = input.substring(0, split);
+
+			// Remaining lines are all parameter data smushed together
+			String paramData = input.substring(split + 1);
+			String[] paramPairs = paramData.split("&");
+			for (String pair : paramPairs)
+			{
+				split = pair.indexOf('=');
+				String key = pair.substring(0, split);
+				String value = pair.substring(split + 1);
+				params.put(URLDecoder.decode(key, "UTF-8"), URLDecoder.decode(value, "UTF-8"));
+			}
+		}
+		else
+		{
+			// No parameters specified
+			path = input;
+		}
+
+		// Remove any leading/trailing whitespace
+		path = path.trim();
+
+		//DEBUG
+		System.out.println("Received request for [" + path + "] with parameters [" + params.toString() + "]");
+
 		return true;
 	}
 }
