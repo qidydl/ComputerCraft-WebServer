@@ -1,13 +1,211 @@
 package com.qidydl.ccwebserver;
 
+import static net.minecraftforge.common.ForgeDirection.EAST;
+import static net.minecraftforge.common.ForgeDirection.NORTH;
+import static net.minecraftforge.common.ForgeDirection.SOUTH;
+import static net.minecraftforge.common.ForgeDirection.WEST;
 import net.minecraft.block.Block;
 import net.minecraft.block.material.Material;
+import net.minecraft.client.renderer.texture.IconRegister;
+import net.minecraft.creativetab.CreativeTabs;
+import net.minecraft.tileentity.TileEntity;
+import net.minecraft.util.Icon;
+import net.minecraft.world.IBlockAccess;
+import net.minecraft.world.World;
+import net.minecraftforge.common.ForgeDirection;
+import cpw.mods.fml.relauncher.Side;
+import cpw.mods.fml.relauncher.SideOnly;
 
 public class BlockWebModem extends Block
 {
-	public BlockWebModem(int id, Material mat)
+	private static final int DIR_NORTH = 4;
+	private static final int DIR_SOUTH = 3;
+	private static final int DIR_EAST  = 1;
+	private static final int DIR_WEST  = 2;
+
+	public BlockWebModem(int id)
 	{
-		super(id, mat);
-		setTextureName("ccwebserver:webModem");
+		super(id, Material.ground);
+		setCreativeTab(CreativeTabs.tabMisc);
+		setUnlocalizedName("blockWebModem");
+		setBlockBounds(0.8125F, 0.0625F, 0.0625F, 1.0F, 0.9375F, 0.9375F);
 	}
+
+	/**
+	 * Is this block (a) opaque and (b) a full 1m cube?  This determines whether or not to render the shared face of two
+	 * adjacent blocks and also whether the player can attach torches, redstone wire, etc to this block.
+	 */
+	@Override
+	public boolean isOpaqueCube()
+	{
+		return false;
+	}
+
+	/**
+	 * If this block doesn't render as an ordinary block it will return False (examples: signs, buttons, stairs, etc)
+	 */
+	@Override
+	public boolean renderAsNormalBlock()
+	{
+		return false;
+	}
+
+	@Override
+	public TileEntity createTileEntity(World world, int metadata)
+	{
+		return new TileEntityWebModem();
+	}
+
+	/**
+	 * Checks to see if it's valid to put this block on the side of a block in the specified direction of the specified coordinates.
+	 */
+	@Override
+	public boolean canPlaceBlockOnSide(World world, int x, int y, int z, int direction)
+	{
+		ForgeDirection dir = ForgeDirection.getOrientation(direction);
+		return	(dir == NORTH && world.isBlockSolidOnSide(x,     y, z + 1, NORTH)) ||
+				(dir == SOUTH && world.isBlockSolidOnSide(x,     y, z - 1, SOUTH)) ||
+				(dir == EAST  && world.isBlockSolidOnSide(x - 1, y, z,     EAST)) ||
+				(dir == WEST  && world.isBlockSolidOnSide(x + 1, y, z,     WEST));
+	}
+
+	/**
+	 * Checks to see if it's valid to put this block at the specified coordinates.
+	 */
+	@Override
+	public boolean canPlaceBlockAt(World world, int x, int y, int z)
+	{
+		return	(world.isBlockSolidOnSide(x,     y, z + 1, NORTH)) ||
+				(world.isBlockSolidOnSide(x,     y, z - 1, SOUTH)) ||
+				(world.isBlockSolidOnSide(x - 1, y, z,     EAST)) ||
+				(world.isBlockSolidOnSide(x + 1, y, z,     WEST));
+	}
+
+	/**
+	 * Called when a block is placed using its ItemBlock.
+	 */
+	@Override
+	public int onBlockPlaced(World world, int x, int y, int z, int side, float hitX, float hitY, float hitZ, int data)
+	{
+		int meta = world.getBlockMetadata(x, y, z);
+
+		ForgeDirection dir = ForgeDirection.getOrientation(side);
+
+		if (dir == NORTH && world.isBlockSolidOnSide(x, y, z + 1, NORTH))
+		{
+			meta = DIR_NORTH;
+		}
+		else if (dir == SOUTH && world.isBlockSolidOnSide(x, y, z - 1, SOUTH))
+		{
+			meta = DIR_SOUTH;
+		}
+		else if (dir == EAST && world.isBlockSolidOnSide(x - 1, y, z, EAST))
+		{
+			meta = DIR_EAST;
+		}
+		else if (dir == WEST && world.isBlockSolidOnSide(x + 1, y, z, WEST))
+		{
+			meta = DIR_WEST;
+		}
+		else
+		{
+			meta = this.getOrientation(world, x, y, z);
+		}
+
+		System.out.println("Placed modem: dir = " + dir.toString() + ", meta = " + meta);
+
+		world.setBlockMetadataWithNotify(x, y, z, meta, 2);
+
+		return meta;
+	}
+
+	/**
+	 * Fall-back mechanism for determining orientation.
+	 */
+	private int getOrientation(World world, int x, int y, int z)
+	{
+		if (world.isBlockSolidOnSide(x,     y, z + 1, NORTH)) { return DIR_NORTH; }
+		if (world.isBlockSolidOnSide(x,     y, z - 1, SOUTH)) { return DIR_SOUTH; }
+		if (world.isBlockSolidOnSide(x - 1, y, z,     EAST))  { return DIR_EAST; }
+		if (world.isBlockSolidOnSide(x + 1, y, z,     WEST))  { return DIR_WEST; }
+		return DIR_EAST;
+	}
+
+	/**
+	 * Updates the block's bounds based on its current state.
+	 */
+	@Override
+	public void setBlockBoundsBasedOnState(IBlockAccess world, int x, int y, int z)
+	{
+		// The direction of the block we're attached to
+		int meta = world.getBlockMetadata(x, y, z);
+
+		if (meta == DIR_EAST)//	minX		minY		minZ		maxX		maxY		maxZ
+		{					//	east		bottom		south		west		top			north
+			this.setBlockBounds(0.0F,		0.125F,		0.125F,		0.1875F,	0.875F,		0.875F);
+		}
+		else if (meta == DIR_WEST)
+		{
+			this.setBlockBounds(0.8125F,	0.125F,		0.125F,		1.0F,		0.875F,		0.875F);
+		}
+		else if (meta == DIR_SOUTH)
+		{
+			this.setBlockBounds(0.125F,		0.125F,		0.0F,		0.875F,		0.875F,		0.1875F);
+		}
+		else if (meta == DIR_NORTH)
+		{
+			this.setBlockBounds(0.125F,		0.125F,		0.8125F,	0.875F, 	0.875F,		1.0F);
+		}
+	}
+
+	@Override
+	public void setBlockBoundsForItemRender()
+	{
+		this.setBlockBounds(0.5F - 0.1875F,		0.125F,		0.125F,		0.5F,	0.875F,		0.875F);
+	}
+
+	@SideOnly(Side.CLIENT)
+	public static Icon faceIcon;
+
+	@SideOnly(Side.CLIENT)
+	public static Icon sideIcon;
+
+	@Override
+	@SideOnly(Side.CLIENT)
+	public void registerIcons(IconRegister registry)
+	{
+		faceIcon = registry.registerIcon("ccwebserver:webModemFace");
+		sideIcon = registry.registerIcon("ccwebserver:webModemSideOn");
+	}
+
+	@Override
+	@SideOnly(Side.CLIENT)
+	public Icon getIcon(int side, int metadata) {
+		if (side == metadata)
+		{
+			return faceIcon;
+		}
+		else
+		{
+			return sideIcon;
+		}
+	}
+
+	/**
+	 * Retrieves the block texture to use based on the display side.
+	 */
+	/*@Override
+	public Icon getBlockTexture(IBlockAccess world, int x, int y, int z, int side)
+	{
+		int meta = world.getBlockMetadata(x, y, z);
+
+		if (side == meta)
+		{
+			return faceIcon;
+		}
+		else
+		{
+			return sideIcon;
+		}
+	}*/
 }

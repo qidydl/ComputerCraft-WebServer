@@ -12,7 +12,6 @@ import cpw.mods.fml.common.Mod.EventHandler;
 import cpw.mods.fml.common.Mod.Instance;
 import cpw.mods.fml.common.SidedProxy;
 import cpw.mods.fml.common.event.FMLInitializationEvent;
-import cpw.mods.fml.common.event.FMLPostInitializationEvent;
 import cpw.mods.fml.common.event.FMLPreInitializationEvent;
 import cpw.mods.fml.common.event.FMLServerStartingEvent;
 import cpw.mods.fml.common.event.FMLServerStoppingEvent;
@@ -32,7 +31,7 @@ public class CCWebServer
 	@SidedProxy(clientSide="com.qidydl.ccwebserver.client.ClientProxy", serverSide="com.qidydl.ccwebserver.CommonProxy")
 	public static CommonProxy proxy;
 
-	private static final Item itemWebModem = new ItemWebModem(12345);
+	private static final Block blockWebModem = new BlockWebModem(1234);
 
 	public static int LISTEN_PORT = 12345;
 
@@ -69,12 +68,13 @@ public class CCWebServer
 	{
 		proxy.registerRenderers();
 
-		LanguageRegistry.addName(itemWebModem, "Web Modem");
+		LanguageRegistry.addName(blockWebModem, "Web Modem");
+		GameRegistry.registerBlock(blockWebModem, "blockWebModem");
 
 		ItemStack stoneStack = new ItemStack(Block.stone);
 		ItemStack enderPearlStack = new ItemStack(Item.enderPearl);
 		ItemStack diamondStack = new ItemStack(Item.diamond);
-		ItemStack webModemStack = new ItemStack(itemWebModem);
+		ItemStack webModemStack = new ItemStack(blockWebModem);
 
 		GameRegistry.addRecipe(webModemStack,
 				"xxx", "xyx", "xzx",
@@ -87,7 +87,7 @@ public class CCWebServer
 		commsThread = new CommsThread(LISTEN_PORT);
 		commsThread.start();
 	}
-	
+
 	@EventHandler
 	public void serverStopping(FMLServerStoppingEvent event)
 	{
