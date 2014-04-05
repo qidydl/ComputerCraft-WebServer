@@ -83,12 +83,14 @@ public class BlockWebModem extends Block
 
 	/**
 	 * Called when a block is placed using its ItemBlock.
+	 * Determines how the block is oriented and saves that as metadata.
 	 */
 	@Override
 	public int onBlockPlaced(World world, int x, int y, int z, int side, float hitX, float hitY, float hitZ, int data)
 	{
 		int meta = world.getBlockMetadata(x, y, z);
 
+		// The side of the block we are attaching to
 		ForgeDirection dir = ForgeDirection.getOrientation(side);
 
 		if (dir == NORTH && world.isBlockSolidOnSide(x, y, z + 1, NORTH))
@@ -112,9 +114,9 @@ public class BlockWebModem extends Block
 			meta = this.getOrientation(world, x, y, z);
 		}
 
-		System.out.println("Placed modem: dir = " + dir.toString() + ", meta = " + meta);
-
 		world.setBlockMetadataWithNotify(x, y, z, meta, 2);
+		setBlockBoundsBasedOnState(world, x, y, z);
+		world.markBlockForUpdate(x, y, z);
 
 		return meta;
 	}
@@ -133,6 +135,7 @@ public class BlockWebModem extends Block
 
 	/**
 	 * Updates the block's bounds based on its current state.
+	 * The direction of the block we're attached to determines the block's shape.
 	 */
 	@Override
 	public void setBlockBoundsBasedOnState(IBlockAccess world, int x, int y, int z)
@@ -158,6 +161,9 @@ public class BlockWebModem extends Block
 		}
 	}
 
+	/**
+	 * Use a standard boundary for rendering the block as an Item (in inventories and floating in the world).
+	 */
 	@Override
 	public void setBlockBoundsForItemRender()
 	{
@@ -170,18 +176,25 @@ public class BlockWebModem extends Block
 	@SideOnly(Side.CLIENT)
 	public static Icon sideIcon;
 
+	@SideOnly(Side.CLIENT)
+	public static Icon sideInvertedIcon;
+
 	@Override
 	@SideOnly(Side.CLIENT)
 	public void registerIcons(IconRegister registry)
 	{
 		faceIcon = registry.registerIcon("ccwebserver:webModemFace");
-		sideIcon = registry.registerIcon("ccwebserver:webModemSideOn");
+		sideIcon = registry.registerIcon("ccwebserver:webModemSide");
+		sideInvertedIcon = registry.registerIcon("ccwebserver:webModemSideInvert");
 	}
 
+	/**
+	 * How to texture the block as an Item (in inventories and floating in the world).
+	 */
 	@Override
 	@SideOnly(Side.CLIENT)
 	public Icon getIcon(int side, int metadata) {
-		if (side == metadata)
+		if (side == 4)
 		{
 			return faceIcon;
 		}
@@ -194,18 +207,26 @@ public class BlockWebModem extends Block
 	/**
 	 * Retrieves the block texture to use based on the display side.
 	 */
-	/*@Override
+	@Override
 	public Icon getBlockTexture(IBlockAccess world, int x, int y, int z, int side)
 	{
+		ForgeDirection dir = ForgeDirection.getOrientation(side);
 		int meta = world.getBlockMetadata(x, y, z);
 
-		if (side == meta)
+		if ((meta == DIR_NORTH && dir == NORTH) ||
+			(meta == DIR_SOUTH && dir == SOUTH) ||
+			(meta == DIR_EAST  && dir == EAST)  ||
+			(meta == DIR_WEST  && dir == WEST))
 		{
 			return faceIcon;
 		}
-		else
+		else if ((dir == NORTH) || (dir == EAST))
 		{
 			return sideIcon;
 		}
-	}*/
+		else
+		{
+			return sideInvertedIcon;
+		}
+	}
 }
