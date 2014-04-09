@@ -1,6 +1,7 @@
 package com.qidydl.ccwebserver;
 
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.net.InetSocketAddress;
 import java.net.URLDecoder;
 import java.nio.ByteBuffer;
@@ -12,6 +13,8 @@ import java.nio.channels.SocketChannel;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Semaphore;
 import java.util.logging.Level;
 
@@ -29,9 +32,10 @@ import cpw.mods.fml.common.FMLLog;
 public class CommsThread extends Thread {
 
 	private final Semaphore terminate;
-	private Selector sel;
 	private final int listenPort;
 	private final ByteBuffer buffer = ByteBuffer.allocate( 16384 );
+	private Selector sel;
+	private final ConcurrentMap<Integer, SocketChannel> sockets;
 
 	/**
 	 * Create a new Communications Thread.
@@ -41,6 +45,8 @@ public class CommsThread extends Thread {
 	public CommsThread(int port)
 	{
 		terminate = new Semaphore(0);
+		listenPort = port;
+		sockets = new ConcurrentHashMap<Integer, SocketChannel>();
 		try
 		{
 			sel = Selector.open();
@@ -52,7 +58,6 @@ public class CommsThread extends Thread {
 			// blowing up in the constructor is annoying at best.
 			sel = null;
 		}
-		listenPort = port;
 	}
 
 	/**
@@ -70,7 +75,44 @@ public class CommsThread extends Thread {
 
 	public void registerModem(TileEntityWebModem modem)
 	{
-		//
+		//TODO: Save the modem information
+		// Map (player, computerName) pair to a modem so we know where to send input
+	}
+
+	/**
+	 * Transmit a response to a particular connection. This can only be used when the Comms Thread
+	 * has told a modem that it has a request.
+	 *
+	 * @param connection The connection identifier that was provided by the Comms Thread.
+	 * @param responseCode The HTTP response code to transmit with the response.
+	 * @param data The data to transmit.
+	 */
+	public void transmitResponse(int connection, int responseCode, String data)
+	{
+		if (sockets.containsKey(connection))
+		{
+			try
+			{
+				SocketChannel conn = sockets.get(connection);
+
+				// Allocating buffers every time is not optimal, but it might not be a big deal.
+				// *If* it proves to be a problem, this can be converted to a shared or per-thread
+				// buffer or something like that.
+				ByteBuffer outputBuffer = ByteBuffer.wrap(data.getBytes("UTF-8"));
+				conn.write(outputBuffer);
+			}
+			catch (UnsupportedEncodingException e)
+			{
+				// Should be impossible to get here--UTF-8 supports damn near everything, right?
+				FMLLog.log(Level.SEVERE, e, "CCWebServer: CommsThread: Unsupported encoding!");
+				e.printStackTrace();
+			}
+			catch (IOException e)
+			{
+				// Thrown mostly by the socket being closed, which will be detected and handled by
+				// the normal processing loop.
+			}
+		}
 	}
 
 	@Override
@@ -120,6 +162,7 @@ public class CommsThread extends Thread {
 							SocketChannel conn = ((ServerSocketChannel)key.channel()).accept();
 							conn.configureBlocking(false);
 							conn.register(sel, SelectionKey.OP_READ);
+							sockets.put(conn.hashCode(), conn);
 
 							//DEBUG
 							System.out.println("Received connection from " + conn.socket().getRemoteSocketAddress().toString());
@@ -135,6 +178,7 @@ public class CommsThread extends Thread {
 								// closure, so clean up.
 								key.cancel();
 								conn.socket().close();
+								sockets.remove(conn.hashCode());
 
 								//DEBUG
 								System.out.println("Connection closed from " + conn.socket().getRemoteSocketAddress().toString());
@@ -198,12 +242,24 @@ public class CommsThread extends Thread {
 			return false;
 		}
 
-		// "Flip" the buffer to access the data we just received
-		buffer.flip();
+		StringBuilder inputBuilder = new StringBuilder();
 
-		// Since we're speaking a text-based protocol, we just want string data
-		byte[] validData = Arrays.copyOfRange(buffer.array(), 0, buffer.limit());
-		String input = new String(validData, "UTF-8");
+		do
+		{
+			// "Flip" the buffer to access the data we just received
+			buffer.flip();
+
+			// Copy the data out of the buffer and convert it to a string
+			byte[] validData = Arrays.copyOfRange(buffer.array(), 0, buffer.limit());
+			String bufferData = new String(validData, "UTF-8");
+			inputBuilder.append(bufferData);
+
+			// Clear the buffer and perform another read
+			buffer.clear();
+			sc.read(buffer);
+		} while (buffer.position() > 0);
+
+		String input = inputBuilder.toString();
 		String path = "";
 		Map<String, String> params = new HashMap<String, String>();
 
@@ -213,7 +269,7 @@ public class CommsThread extends Thread {
 			// First line is the URL path
 			path = input.substring(0, split);
 
-			// Remaining lines are all parameter data smushed together
+			// Remaining lines are all parameter data concatenated together
 			String paramData = input.substring(split + 1);
 			String[] paramPairs = paramData.split("&");
 			for (String pair : paramPairs)
@@ -235,6 +291,30 @@ public class CommsThread extends Thread {
 
 		//DEBUG
 		System.out.println("Received request for [" + path + "] with parameters [" + params.toString() + "]");
+		ByteBuffer test = ByteBuffer.allocate(1024);
+		test.put("test\n".getBytes("UTF-8"));
+		test.flip();
+		sc.write(test);
+		//DEBUG
+
+		// Strip any leading slashes
+		while (path.substring(0, 1) == "/")
+		{
+			path = path.substring(1);
+		}
+
+		// Break the path into the sequence of "folders"
+		String[] pathParts = path.split("/");
+
+		// Make sure they've specified at least the player and computer name
+		if (pathParts.length < 2)
+		{
+			transmitResponse(sc.hashCode(), 404, "Object Not Found: The requested URL did not supply a player and computer name to access.");
+		}
+		else
+		{
+			//TODO: look up modem based on player and computer name
+		}
 
 		return true;
 	}
