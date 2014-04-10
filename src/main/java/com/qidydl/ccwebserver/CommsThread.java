@@ -36,6 +36,7 @@ public class CommsThread extends Thread {
 	private final ByteBuffer buffer = ByteBuffer.allocate( 16384 );
 	private Selector sel;
 	private final ConcurrentMap<Integer, SocketChannel> sockets;
+	private final ConcurrentMap<String, ConcurrentMap<String, TileEntityWebModem>> modems;
 
 	/**
 	 * Create a new Communications Thread.
@@ -47,6 +48,7 @@ public class CommsThread extends Thread {
 		terminate = new Semaphore(0);
 		listenPort = port;
 		sockets = new ConcurrentHashMap<Integer, SocketChannel>();
+		modems = new ConcurrentHashMap<String, ConcurrentMap<String, TileEntityWebModem>>();
 		try
 		{
 			sel = Selector.open();
@@ -55,7 +57,7 @@ public class CommsThread extends Thread {
 		{
 			// We're basically screwed if this happens.
 			// Initialization in the run() method checks for this, because
-			// blowing up in the constructor is annoying at best.
+			// blowing up in the constructor is problematic.
 			sel = null;
 		}
 	}
@@ -73,10 +75,23 @@ public class CommsThread extends Thread {
 		sel.wakeup();
 	}
 
+	/**
+	 * Tell the communications thread that a new modem has been activated.
+	 * @param modem The modem that was activated.
+	 */
 	public void registerModem(TileEntityWebModem modem)
 	{
 		//TODO: Save the modem information
 		// Map (player, computerName) pair to a modem so we know where to send input
+		String playerName = "";
+		String computerName = "";
+
+		if (!modems.containsKey(playerName))
+		{
+			modems.put(playerName, new ConcurrentHashMap<String, TileEntityWebModem>());
+		}
+
+		modems.get(playerName).put(computerName, modem);
 	}
 
 	/**
@@ -95,7 +110,7 @@ public class CommsThread extends Thread {
 			{
 				SocketChannel conn = sockets.get(connection);
 
-				// Allocating buffers every time is not optimal, but it might not be a big deal.
+				// Allocating a buffer every time is not optimal, but it might not be a big deal.
 				// *If* it proves to be a problem, this can be converted to a shared or per-thread
 				// buffer or something like that.
 				ByteBuffer outputBuffer = ByteBuffer.wrap(data.getBytes("UTF-8"));
@@ -103,44 +118,52 @@ public class CommsThread extends Thread {
 			}
 			catch (UnsupportedEncodingException e)
 			{
-				// Should be impossible to get here--UTF-8 supports damn near everything, right?
+				// Should be impossible to get here; UTF-8 is really standard and supports nearly any character
 				FMLLog.log(Level.SEVERE, e, "CCWebServer: CommsThread: Unsupported encoding!");
 				e.printStackTrace();
 			}
 			catch (IOException e)
 			{
 				// Thrown mostly by the socket being closed, which will be detected and handled by
-				// the normal processing loop.
+				// the normal processing loop, so we don't need to do anything here.
 			}
 		}
 	}
 
+	/**
+	 * The thread entry point.
+	 */
 	@Override
 	public void run() {
+		// Set the thread name, mostly for debugging purposes.
 		this.setName("CCWebServer.CommsThread");
-		boolean terminated = false;
-		boolean initialized = false;
 
 		ServerSocketChannel servsock = null;
+		boolean initialized = false;
+		boolean terminated = true;
 
-		// Initialize I/O and start listening for connections
-		try
+		// Don't bother trying to initialize if we couldn't create the Selector
+		if (sel != null)
 		{
-			// Don't bother trying to initialize if we couldn't create the Selector
-			if (sel != null)
+			// Initialize I/O and start listening for connections
+			try
 			{
 				servsock = ServerSocketChannel.open();
 				servsock.bind(new InetSocketAddress(listenPort));
 				servsock.configureBlocking(false);
 				servsock.register(sel, SelectionKey.OP_ACCEPT);
+
+				// We only need to do clean-up below if initialization was successful
 				initialized = true;
+
+				// Only allow the loop to run if we finished all of the above
+				terminated = false;
 			}
-		}
-		catch (IOException e)
-		{
-			// We're basically screwed if this happens.
-			FMLLog.log(Level.SEVERE, e, "CCWebServer Mod: CommsThread: Could not listen for connections!");
-			terminated = true;
+			catch (IOException e)
+			{
+				// We're basically screwed if this happens.
+				FMLLog.log(Level.SEVERE, e, "CCWebServer Mod: CommsThread: Could not listen for connections!");
+			}
 		}
 
 		// Main processing loop - listen for connections or new data
@@ -167,7 +190,7 @@ public class CommsThread extends Thread {
 							//DEBUG
 							System.out.println("Received connection from " + conn.socket().getRemoteSocketAddress().toString());
 						}
-						else // Everything else is UN-ACCEPTABLE
+						else // Everything else is UN-ACCEPTABLE :P
 						if (key.isReadable())
 						{
 							SocketChannel conn = (SocketChannel)key.channel();
@@ -185,6 +208,7 @@ public class CommsThread extends Thread {
 							}
 						}
 					}
+
 					// Once we're done processing, clear out the set.
 					sel.selectedKeys().clear();
 				}
@@ -242,8 +266,8 @@ public class CommsThread extends Thread {
 			return false;
 		}
 
+		// Keep reading data until we've got it all
 		StringBuilder inputBuilder = new StringBuilder();
-
 		do
 		{
 			// "Flip" the buffer to access the data we just received
@@ -259,17 +283,19 @@ public class CommsThread extends Thread {
 			sc.read(buffer);
 		} while (buffer.position() > 0);
 
+		// We have all the data, start processing
 		String input = inputBuilder.toString();
 		String path = "";
 		Map<String, String> params = new HashMap<String, String>();
 
+		// First, break apart path and query string
 		int split = input.indexOf('?');
 		if (split > 0)
 		{
-			// First line is the URL path
+			// First part is the URL path
 			path = input.substring(0, split);
 
-			// Remaining lines are all parameter data concatenated together
+			// The rest is all parameter data concatenated together
 			String paramData = input.substring(split + 1);
 			String[] paramPairs = paramData.split("&");
 			for (String pair : paramPairs)
@@ -288,6 +314,8 @@ public class CommsThread extends Thread {
 
 		// Remove any leading/trailing whitespace
 		path = path.trim();
+
+		// Now we have an absolute path and parameter data, next we need to examine the path.
 
 		//DEBUG
 		System.out.println("Received request for [" + path + "] with parameters [" + params.toString() + "]");
@@ -313,7 +341,49 @@ public class CommsThread extends Thread {
 		}
 		else
 		{
-			//TODO: look up modem based on player and computer name
+			// Path format is <playerName>/<computerName>[/optional further path]
+			String playerName = pathParts[0];
+			String computerName = pathParts[1];
+			String remainingPath = "";
+
+			if (pathParts.length > 2)
+			{
+				// Holy hell is Java a verbose pile of garbage. Seriously, no Join?
+				StringBuilder pathRebuilder = new StringBuilder();
+				boolean first = true;
+				for (String pathItem : Arrays.copyOfRange(pathParts, 2, pathParts.length))
+				{
+					if (first)
+					{
+						first = false;
+					}
+					else
+					{
+						pathRebuilder.append("/");
+					}
+					pathRebuilder.append(pathItem);
+				}
+
+				remainingPath = pathRebuilder.toString();
+			}
+
+			boolean modemExists = false;
+
+			if (modems.containsKey(playerName))
+			{
+				if (modems.get(playerName).containsKey(computerName))
+				{
+					TileEntityWebModem modem = modems.get(playerName).get(computerName);
+					modemExists = true;
+
+					//TODO: Send data to the modem. Include sc.hashCode(), remainingPath, params
+				}
+			}
+
+			if (!modemExists)
+			{
+				transmitResponse(sc.hashCode(), 404, "Object Not Found: The specified player name/computer name does not exist or is not ready.");
+			}
 		}
 
 		return true;
