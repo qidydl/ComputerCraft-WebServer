@@ -1,8 +1,8 @@
 package com.qidydl.ccwebserver;
 
 import net.minecraft.tileentity.TileEntity;
-import dan200.computercraft.api.peripheral.IComputerAccess;
 import dan200.computercraft.api.lua.ILuaContext;
+import dan200.computercraft.api.peripheral.IComputerAccess;
 import dan200.computercraft.api.peripheral.IPeripheral;
 
 public class TileEntityWebModem extends TileEntity implements IPeripheral

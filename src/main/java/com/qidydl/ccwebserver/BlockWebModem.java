@@ -5,6 +5,7 @@ import static net.minecraftforge.common.ForgeDirection.NORTH;
 import static net.minecraftforge.common.ForgeDirection.SOUTH;
 import static net.minecraftforge.common.ForgeDirection.WEST;
 import net.minecraft.block.Block;
+import net.minecraft.block.ITileEntityProvider;
 import net.minecraft.block.material.Material;
 import net.minecraft.client.renderer.texture.IconRegister;
 import net.minecraft.creativetab.CreativeTabs;
@@ -16,7 +17,7 @@ import net.minecraftforge.common.ForgeDirection;
 import cpw.mods.fml.relauncher.Side;
 import cpw.mods.fml.relauncher.SideOnly;
 
-public class BlockWebModem extends Block
+public class BlockWebModem extends Block implements ITileEntityProvider
 {
 	private static final int DIR_NORTH = 4;
 	private static final int DIR_SOUTH = 3;
@@ -50,8 +51,11 @@ public class BlockWebModem extends Block
 		return false;
 	}
 
+	/**
+	 * Get a new Tile Entity associated with this block.
+	 */
 	@Override
-	public TileEntity createTileEntity(World world, int metadata)
+	public TileEntity createNewTileEntity(World world)
 	{
 		return new TileEntityWebModem();
 	}
@@ -208,6 +212,7 @@ public class BlockWebModem extends Block
 	 * Retrieves the block texture to use based on the display side.
 	 */
 	@Override
+	@SideOnly(Side.CLIENT)
 	public Icon getBlockTexture(IBlockAccess world, int x, int y, int z, int side)
 	{
 		ForgeDirection dir = ForgeDirection.getOrientation(side);

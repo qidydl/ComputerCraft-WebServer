@@ -71,6 +71,8 @@ public class CCWebServer
 		LanguageRegistry.addName(blockWebModem, "Web Modem");
 		GameRegistry.registerBlock(blockWebModem, "blockWebModem");
 
+		GameRegistry.registerTileEntity(TileEntityWebModem.class, "tileEntityWebModem");
+
 		ItemStack stoneStack = new ItemStack(Block.stone);
 		ItemStack enderPearlStack = new ItemStack(Item.enderPearl);
 		ItemStack diamondStack = new ItemStack(Item.diamond);
