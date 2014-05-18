@@ -3,6 +3,7 @@ bin/
 build/
 eclipse/
 gradle/
+src/api/java/dan200/
 
 #################
 ## Eclipse
