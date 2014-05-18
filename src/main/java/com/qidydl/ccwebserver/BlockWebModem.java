@@ -16,8 +16,12 @@ import net.minecraft.world.World;
 import net.minecraftforge.common.ForgeDirection;
 import cpw.mods.fml.relauncher.Side;
 import cpw.mods.fml.relauncher.SideOnly;
+import dan200.computercraft.api.peripheral.IPeripheral;
+import dan200.computercraft.api.peripheral.IPeripheralProvider;
 
-public class BlockWebModem extends Block implements ITileEntityProvider
+//TODO: Turn into a Forge micropart?
+
+public class BlockWebModem extends Block implements ITileEntityProvider, IPeripheralProvider
 {
 	private static final int DIR_NORTH = 4;
 	private static final int DIR_SOUTH = 3;
@@ -87,7 +91,7 @@ public class BlockWebModem extends Block implements ITileEntityProvider
 
 	/**
 	 * Called when a block is placed using its ItemBlock.
-	 * Determines how the block is oriented and saves that as metadata.
+	 * Determines how the block is oriented and saves that as meta-data.
 	 */
 	@Override
 	public int onBlockPlaced(World world, int x, int y, int z, int side, float hitX, float hitY, float hitZ, int data)
@@ -233,5 +237,11 @@ public class BlockWebModem extends Block implements ITileEntityProvider
 		{
 			return sideInvertedIcon;
 		}
+	}
+
+	@Override
+	public IPeripheral getPeripheral(World world, int x, int y, int z, int side)
+	{
+		return (TileEntityWebModem)world.getBlockTileEntity(x, y, z);
 	}
 }
