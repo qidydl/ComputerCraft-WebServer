@@ -10,9 +10,9 @@ import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
+import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Semaphore;
@@ -36,7 +36,9 @@ public class CommsThread extends Thread {
 	private final ByteBuffer buffer = ByteBuffer.allocate( 16384 );
 	private Selector sel;
 	private final ConcurrentMap<Integer, SocketChannel> sockets;
-	private final ConcurrentMap<String, ConcurrentMap<String, TileEntityWebModem>> modems;
+	private final ConcurrentMap<Integer, TileEntityWebModem> modems;
+
+	private static CommsThread s_Instance = null;
 
 	/**
 	 * Create a new Communications Thread.
@@ -48,7 +50,7 @@ public class CommsThread extends Thread {
 		terminate = new Semaphore(0);
 		listenPort = port;
 		sockets = new ConcurrentHashMap<Integer, SocketChannel>();
-		modems = new ConcurrentHashMap<String, ConcurrentMap<String, TileEntityWebModem>>();
+		modems = new ConcurrentHashMap<Integer, TileEntityWebModem>();
 		try
 		{
 			sel = Selector.open();
@@ -63,11 +65,31 @@ public class CommsThread extends Thread {
 	}
 
 	/**
+	 * Set the instance of the CommsThread being used.
+	 * @param ct The CommsThread that should be used for communication.
+	 */
+	public static void setInstance(CommsThread ct)
+	{
+		s_Instance = ct;
+	}
+
+	/**
+	 * Get the current instance of the CommsThread being used.
+	 * @return The CommsThread that should be used for communication.
+	 */
+	public static CommsThread getInstance()
+	{
+		return s_Instance;
+	}
+
+	/**
 	 * Tell the communications thread to stop processing and close all open
 	 * connections.
 	 */
 	public void shutdown()
 	{
+		s_Instance = null;
+
 		// Releasing the semaphore allows the thread to exit the loop
 		terminate.release();
 
@@ -77,21 +99,22 @@ public class CommsThread extends Thread {
 
 	/**
 	 * Tell the communications thread that a new modem has been activated.
+	 * @param computerID The computer that is using the modem.
 	 * @param modem The modem that was activated.
 	 */
-	public void registerModem(TileEntityWebModem modem)
+	public void registerModem(int computerID, TileEntityWebModem modem)
 	{
-		//TODO: Save the modem information
-		// Map (player, computerName) pair to a modem so we know where to send input
-		String playerName = "";
-		String computerName = "";
+		modems.put(computerID, modem);
+	}
 
-		if (!modems.containsKey(playerName))
-		{
-			modems.put(playerName, new ConcurrentHashMap<String, TileEntityWebModem>());
-		}
-
-		modems.get(playerName).put(computerName, modem);
+	/**
+	 * Tell the communications thread that a modem has been deactivated.
+	 * @param computerID The computer that is no longer using the modem.
+	 * @param modem The modem that was deactivated.
+	 */
+	public void unregisterModem(int computerID, TileEntityWebModem modem)
+	{
+		modems.remove(computerID);
 	}
 
 	/**
@@ -286,7 +309,7 @@ public class CommsThread extends Thread {
 		// We have all the data, start processing
 		String input = inputBuilder.toString();
 		String path = "";
-		Map<String, String> params = new HashMap<String, String>();
+		List<String> params = new ArrayList<String>();
 
 		// First, break apart path and query string
 		int split = input.indexOf('?');
@@ -300,10 +323,7 @@ public class CommsThread extends Thread {
 			String[] paramPairs = paramData.split("&");
 			for (String pair : paramPairs)
 			{
-				split = pair.indexOf('=');
-				String key = pair.substring(0, split);
-				String value = pair.substring(split + 1);
-				params.put(URLDecoder.decode(key, "UTF-8"), URLDecoder.decode(value, "UTF-8"));
+				params.add(URLDecoder.decode(pair, "UTF-8"));
 			}
 		}
 		else
@@ -331,59 +351,41 @@ public class CommsThread extends Thread {
 			path = path.substring(1);
 		}
 
-		// Break the path into the sequence of "folders"
-		String[] pathParts = path.split("/");
+		// Break the path into computer ID and everything else
+		String computerID = "";
+		int computerIDint = 0;
+		String remainingPath = "";
 
-		// Make sure they've specified at least the player and computer name
-		if (pathParts.length < 2)
+		// Path format is <computerId>[/optional further path]
+		split = path.indexOf('/');
+
+		if (split > 0)
 		{
-			transmitResponse(sc.hashCode(), 404, "Object Not Found: The requested URL did not supply a player and computer name to access.");
+			computerID = path.substring(0, split);
+			remainingPath = path.substring(split + 1);
 		}
 		else
 		{
-			// Path format is <playerName>/<computerName>[/optional further path]
-			String playerName = pathParts[0];
-			String computerName = pathParts[1];
-			String remainingPath = "";
+			computerID = path;
+		}
 
-			if (pathParts.length > 2)
-			{
-				// Holy hell is Java a verbose pile of garbage. Seriously, no Join?
-				StringBuilder pathRebuilder = new StringBuilder();
-				boolean first = true;
-				for (String pathItem : Arrays.copyOfRange(pathParts, 2, pathParts.length))
-				{
-					if (first)
-					{
-						first = false;
-					}
-					else
-					{
-						pathRebuilder.append("/");
-					}
-					pathRebuilder.append(pathItem);
-				}
+		try
+		{
+			computerIDint = Integer.parseInt(computerID);
+		}
+		catch (NumberFormatException e)
+		{
+			transmitResponse(sc.hashCode(), 400, "Bad Request: Computer ID must be a valid integer");
+		}
 
-				remainingPath = pathRebuilder.toString();
-			}
-
-			boolean modemExists = false;
-
-			if (modems.containsKey(playerName))
-			{
-				if (modems.get(playerName).containsKey(computerName))
-				{
-					TileEntityWebModem modem = modems.get(playerName).get(computerName);
-					modemExists = true;
-
-					//TODO: Send data to the modem. Include sc.hashCode(), remainingPath, params
-				}
-			}
-
-			if (!modemExists)
-			{
-				transmitResponse(sc.hashCode(), 404, "Object Not Found: The specified player name/computer name does not exist or is not ready.");
-			}
+		if (modems.containsKey(computerIDint))
+		{
+			TileEntityWebModem modem = modems.get(computerIDint);
+			modem.receiveRequest(sc.hashCode(), computerIDint, remainingPath, params);
+		}
+		else
+		{
+			transmitResponse(sc.hashCode(), 404, "Object Not Found: The specified computer ID does not exist or is not ready.");
 		}
 
 		return true;
