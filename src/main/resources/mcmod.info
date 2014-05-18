@@ -1,16 +1,13 @@
-[
-{
-  "modid": "qidydlCCWebServer",
-  "name": "ComputerCraft WebServer",
-  "description": "Allow your computers to be accessed from the real World Wide Web.",
-  "version": "${version}",
-  "mcversion": "${mcversion}",
-  "url": "https://github.com/qidydl/ComputerCraft-WebServer",
-  "updateUrl": "",
-  "authors": ["qidydl"],
-  "credits": "",
-  "logoFile": "",
-  "screenshots": [],
-  "dependencies": []
-}
-]
+[{
+	"modid": "qidydlCCWebServer",
+	"name": "ComputerCraft WebServer",
+	"description": "Allow your computers to be accessed from the real World Wide Web.",
+	"version": "${version}",
+	"mcversion": "${mcversion}",
+	"url": "https://github.com/qidydl/ComputerCraft-WebServer",
+	"updateUrl": "https://github.com/qidydl/ComputerCraft-WebServer/releases",
+	"authors": [ "qidydl" ],
+	"credits": "Authored by qidydl",
+	"requiredMods": [ "Forge", "ComputerCraft" ],
+	"dependencies": [ "MinecraftForge,ComputerCraft" ]
+}]
