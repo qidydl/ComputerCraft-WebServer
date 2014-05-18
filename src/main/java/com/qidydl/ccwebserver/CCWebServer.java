@@ -18,8 +18,9 @@ import cpw.mods.fml.common.event.FMLServerStoppingEvent;
 import cpw.mods.fml.common.network.NetworkMod;
 import cpw.mods.fml.common.registry.GameRegistry;
 import cpw.mods.fml.common.registry.LanguageRegistry;
+import dan200.computercraft.api.ComputerCraftAPI;
 
-@Mod(modid = "qidydlCCWebServer", name = "ComputerCraft WebServer") // dependencies = "required-after:ComputerCraft@[1.6,]"
+@Mod(modid = "qidydlCCWebServer", name = "ComputerCraft WebServer", dependencies = "required-after:ComputerCraft@[1.6,)")
 @NetworkMod(serverSideRequired = true, clientSideRequired = true)
 public class CCWebServer
 {
@@ -31,11 +32,12 @@ public class CCWebServer
 	@SidedProxy(clientSide="com.qidydl.ccwebserver.client.ClientProxy", serverSide="com.qidydl.ccwebserver.CommonProxy")
 	public static CommonProxy proxy;
 
-	private static final Block blockWebModem = new BlockWebModem(1234);
-
-	public static int LISTEN_PORT = 12345;
+	// The port to listen on for incoming requests.
+	public static int LISTEN_PORT = 60000;
 
 	// Standard Java instance variables
+	public static int blockWebModemID = 1234;
+	public static Block blockWebModem;
 	private CommsThread commsThread;
 
 	@EventHandler
@@ -48,7 +50,8 @@ public class CCWebServer
 		try
 		{
 			cfg.load();
-			LISTEN_PORT = cfg.get(Configuration.CATEGORY_GENERAL, "listenPort", 12345).getInt();
+			blockWebModemID = cfg.getBlock("webModem", blockWebModemID).getInt();
+			LISTEN_PORT = cfg.get(Configuration.CATEGORY_GENERAL, "listenPort", LISTEN_PORT).getInt();
 		}
 		catch (Exception e)
 		{
@@ -61,6 +64,9 @@ public class CCWebServer
 				cfg.save();
 			}
 		}
+
+		blockWebModem = new BlockWebModem(blockWebModemID);
+		GameRegistry.registerBlock(blockWebModem, "blockWebModem");
 	}
 
 	@EventHandler
@@ -69,7 +75,6 @@ public class CCWebServer
 		proxy.registerRenderers();
 
 		LanguageRegistry.addName(blockWebModem, "Web Modem");
-		GameRegistry.registerBlock(blockWebModem, "blockWebModem");
 
 		GameRegistry.registerTileEntity(TileEntityWebModem.class, "tileEntityWebModem");
 
@@ -81,12 +86,15 @@ public class CCWebServer
 		GameRegistry.addRecipe(webModemStack,
 				"xxx", "xyx", "xzx",
 				'x', stoneStack, 'y', enderPearlStack, 'z', diamondStack);
+
+		ComputerCraftAPI.registerPeripheralProvider((BlockWebModem)blockWebModem);
 	}
 
 	@EventHandler
 	public void serverStarting(FMLServerStartingEvent event)
 	{
 		commsThread = new CommsThread(LISTEN_PORT);
+		CommsThread.setInstance(commsThread);
 		commsThread.start();
 	}
 
